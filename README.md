@@ -27,6 +27,10 @@ The integration reads data 5 minutes. It exposes one entity, `sensor.esb_faults_
 | distance        | Distance in km from your configured lat/lon                  |
 | nearest_road    | Nearest named road to the outage pin (via OpenStreetMap)     |
 | location_detail | Area and road combined, e.g. `Sutton (near Moyclare Rd)`     |
+| plannedOutageReason | Reason for the works (planned outages only, else empty)  |
+| startTimeISO    | `startTime` as an ISO 8601 timestamp (Europe/Dublin)         |
+| estRestoreTimeISO | `estRestoreTime` as an ISO 8601 timestamp                  |
+| restoreTimeISO  | `restoreTime` as an ISO 8601 timestamp (`null` if not restored) |
 | plannerGroup    | Region                                                       |
 | numCustAffected | Number of customers affected                                 |
 | startTime       | Outage start time                                            |

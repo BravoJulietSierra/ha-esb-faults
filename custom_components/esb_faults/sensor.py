@@ -1,6 +1,8 @@
 """Sensor for ESB Faults."""
 
 import logging
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import aiohttp
 from geopy.distance import geodesic
@@ -8,6 +10,25 @@ from geopy.distance import geodesic
 from homeassistant.helpers.entity import Entity
 
 _LOGGER = logging.getLogger(__name__)
+
+# PowerCheck returns times as day-first local Irish text, e.g. "19/10/2026 16:00"
+ESB_TIME_FORMAT = "%d/%m/%Y %H:%M"
+ESB_TIME_ZONE = ZoneInfo("Europe/Dublin")
+
+
+def parse_esb_time(value):
+    """Convert a PowerCheck time string to an ISO 8601 string with offset.
+
+    Returns None for empty or unparseable values.
+    """
+    if not value:
+        return None
+    try:
+        parsed = datetime.strptime(value, ESB_TIME_FORMAT)
+    except (TypeError, ValueError):
+        _LOGGER.debug("Unparseable PowerCheck time: %s", value)
+        return None
+    return parsed.replace(tzinfo=ESB_TIME_ZONE).isoformat()
 
 
 def calculate_distance(known_location, outage_location):
@@ -65,6 +86,12 @@ async def fetch_detailed_outage_data(outage_id, api_subscription_key):
                     "estRestoreTime": data["estRestoreTime"],
                     "statusMessage": data["statusMessage"],
                     "restoreTime": data["restoreTime"],
+                    # Only populated for planned outages
+                    "plannedOutageReason": data.get("plannedOutageReason", ""),
+                    # Real timestamps (ISO 8601, Europe/Dublin) for templates
+                    "startTimeISO": parse_esb_time(data["startTime"]),
+                    "estRestoreTimeISO": parse_esb_time(data["estRestoreTime"]),
+                    "restoreTimeISO": parse_esb_time(data["restoreTime"]),
                 }
                 return detailed_outage_data
             else:
