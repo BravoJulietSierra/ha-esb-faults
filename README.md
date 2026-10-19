@@ -25,6 +25,8 @@ The integration reads data 5 minutes. It exposes one entity, `sensor.esb_faults_
 | latitude        | Latitude of the outage pin on the PowerCheck map             |
 | longitude       | Longitude of the outage pin on the PowerCheck map            |
 | distance        | Distance in km from your configured lat/lon                  |
+| nearest_road    | Nearest named road to the outage pin (via OpenStreetMap)     |
+| location_detail | Area and road combined, e.g. `Sutton (near Moyclare Rd)`     |
 | plannerGroup    | Region                                                       |
 | numCustAffected | Number of customers affected                                 |
 | startTime       | Outage start time                                            |
@@ -33,6 +35,10 @@ The integration reads data 5 minutes. It exposes one entity, `sensor.esb_faults_
 | restoreTime     | Restoration time (only for outages of outageType `Restored`) |
 | numCustAffected | Number of customers affected                                 |
 
+
+### Nearest road lookup
+
+The nearest road is found by reverse geocoding the outage coordinates with [OpenStreetMap Nominatim](https://nominatim.org/). Each outage is looked up once and cached until it disappears from the PowerCheck feed, so the integration stays well within Nominatim's usage policy. If the lookup fails, `nearest_road` is `null` and `location_detail` is omitted. Road accuracy depends on OpenStreetMap data and the pin may sit at a network asset rather than the exact fault.
 
 ## Sample Automation to notify about nearby outages
 
@@ -52,7 +58,9 @@ action:
       message: >-
         Type: {{state_attr('sensor.esb_faults_sensor', 'outages')[0].type}},
         Location: {{state_attr('sensor.esb_faults_sensor',
-        'outages')[0].location}}, Distance:
+        'outages')[0].location_detail
+        | default(state_attr('sensor.esb_faults_sensor',
+        'outages')[0].location)}}, Distance:
         {{state_attr('sensor.esb_faults_sensor', 'outages')[0].distance}} KM,
         Estimated Restore: {{state_attr('sensor.esb_faults_sensor',
         'outages')[0].estRestoreTime}}

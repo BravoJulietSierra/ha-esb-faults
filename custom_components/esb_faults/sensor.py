@@ -87,6 +87,48 @@ async def fetch_data_from_api(api_subscription_key):
             return None
 
 
+NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+# Nominatim's usage policy requires an identifying User-Agent.
+NOMINATIM_HEADERS = {
+    "User-Agent": "ha-esb-faults (Home Assistant custom integration; "
+    "https://github.com/BravoJulietSierra/ha-esb-faults)"
+}
+ROAD_KEYS = ("road", "pedestrian", "residential", "footway", "path", "cycleway")
+
+
+async def fetch_nearest_road(latitude, longitude):
+    """Reverse geocode a point to the nearest named road using OpenStreetMap.
+
+    Returns None if the lookup fails or no road is found.
+    """
+    params = {
+        "format": "jsonv2",
+        "lat": latitude,
+        "lon": longitude,
+        "zoom": 17,  # street level
+        "addressdetails": 1,
+    }
+    try:
+        timeout = aiohttp.ClientTimeout(total=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
+                NOMINATIM_URL, params=params, headers=NOMINATIM_HEADERS
+            ) as response:
+                if response.status != 200:
+                    _LOGGER.debug("Nominatim returned status %s", response.status)
+                    return None
+                data = await response.json()
+    except (aiohttp.ClientError, TimeoutError, ValueError) as err:
+        _LOGGER.debug("Nominatim lookup failed: %s", err)
+        return None
+
+    address = data.get("address", {})
+    for key in ROAD_KEYS:
+        if address.get(key):
+            return address[key]
+    return None
+
+
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the ESB Faults sensor."""
     latitude = entry.data.get("latitude")
@@ -110,6 +152,17 @@ class ESBFaultsSensor(Entity):
         self._api_subscription_key = api_subscription_key
         self._state = None
         self._attributes = {}
+        # outage id -> nearest road, so each fault is only geocoded once
+        self._road_cache = {}
+
+    async def _nearest_road(self, outage_id, latitude, longitude):
+        """Return the nearest road for an outage, using a per-id cache."""
+        if outage_id not in self._road_cache:
+            road = await fetch_nearest_road(latitude, longitude)
+            if road is None:
+                return None  # don't cache failures, retry next update
+            self._road_cache[outage_id] = road
+        return self._road_cache[outage_id]
 
     async def async_update(self):
         """Update the sensor data."""
@@ -154,7 +207,24 @@ class ESBFaultsSensor(Entity):
                 if detailed_outage_data is not None:
                     outage_data.update(detailed_outage_data)
 
+                # Add the nearest road alongside the named area,
+                # e.g. "Sutton (near Moyclare Rd)".
+                road = await self._nearest_road(
+                    outage["i"], outage_latitude, outage_longitude
+                )
+                outage_data["nearest_road"] = road
+                if road and detailed_outage_data is not None:
+                    outage_data["location_detail"] = (
+                        f"{outage_data['location']} (near {road})"
+                    )
+
                 self._attributes["outages"].append(outage_data)
+
+            # Forget roads for outages that are no longer listed
+            current_ids = {o["id"] for o in self._attributes["outages"]}
+            self._road_cache = {
+                k: v for k, v in self._road_cache.items() if k in current_ids
+            }
         else:
             self._state = None
             self._attributes = {}
