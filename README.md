@@ -21,7 +21,10 @@ The integration reads data 5 minutes. It exposes one entity, `sensor.esb_faults_
 | Outage Field    | Description                                                  |
 |-----------------|--------------------------------------------------------------|
 | outageType      | Outage type (e.g. 'Planned', 'Fault', 'Restored')            |
-| location        | Outage location                                              |
+| location        | Outage location (area name)                                  |
+| latitude        | Latitude of the outage pin on the PowerCheck map             |
+| longitude       | Longitude of the outage pin on the PowerCheck map            |
+| distance        | Distance in km from your configured lat/lon                  |
 | plannerGroup    | Region                                                       |
 | numCustAffected | Number of customers affected                                 |
 | startTime       | Outage start time                                            |

@@ -140,6 +140,10 @@ class ESBFaultsSensor(Entity):
                     "id": outage["i"],
                     "type": outage["t"],
                     "location": outage_location,
+                    # Keep the pin coordinates: the detail call below
+                    # overwrites "location" with the area name.
+                    "latitude": outage_latitude,
+                    "longitude": outage_longitude,
                     "distance": round(outage_distance, 2),
                 }
                 
